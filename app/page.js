@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 /* ---------- helpers ---------- */
 
@@ -11,12 +11,118 @@ function timeToToday(hhmm) {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0, 0);
 }
 
+// --- Pro #1 helpers: countdown, chime, timer mgmt ---
+const pad = (n) => (n < 10 ? '0' + n : '' + n);
+
+/** Double-beep (~0.5s) — used by the loop below */
+function playChime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+
+    // Two short beeps: 180ms + 220ms with an 80ms gap
+    const now = ctx.currentTime;
+    const peak = 0.18;        // quieter than default
+    const d1 = 0.18;          // first beep length
+    const gap = 0.08;         // silence between beeps
+    const d2 = 0.22;          // second beep length
+
+    o.type = 'sine';
+    o.frequency.setValueAtTime(1100, now); // first beep
+    o.connect(g);
+    g.connect(ctx.destination);
+
+    g.gain.setValueAtTime(0.0001, now);
+
+    // Beep 1
+    g.gain.exponentialRampToValueAtTime(peak, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + d1 - 0.02);
+
+    // Gap
+    g.gain.setValueAtTime(0.0001, now + d1);
+
+    // Beep 2 (slightly higher)
+    o.frequency.setValueAtTime(1400, now + d1 + gap);
+    g.gain.exponentialRampToValueAtTime(peak, now + d1 + gap + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + d1 + gap + d2 - 0.02);
+
+    // Stop & cleanup
+    o.start(now);
+    o.stop(now + d1 + gap + d2);
+    o.onended = () => { try { ctx.close(); } catch {} };
+  } catch {}
+}
+
+/**
+ * Install per-dish timers:
+ *  - setInterval (1s): updates mm:ss until start
+ *  - setTimeout: notifies component when a dish reaches start (onDishStart)
+ * External state is managed via setters passed in.
+ */
+function setupAlarmsAndCountdowns(schedule, setCountdowns, timersRef, onDishStart) {
+  const timeouts = [];
+  const intervals = [];
+
+  // defensive: clear any prior timers
+  timersRef.current.timeouts.forEach((t) => clearTimeout(t));
+  timersRef.current.intervals.forEach((i) => clearInterval(i));
+  timersRef.current = { timeouts: [], intervals: [] };
+
+  const now = Date.now();
+
+  schedule.forEach((s) => {
+    const startAt = new Date(s.startISO).getTime();
+
+    // If start time already passed, mark as "Go!" and skip timers
+    if (startAt <= Date.now()) {
+      setCountdowns((prev) => ({ ...prev, [s.id]: 'Go!' }));
+      return;
+    }
+
+    // live countdown (per dish)
+    const intId = setInterval(() => {
+      const delta = startAt - Date.now();
+      if (delta <= 0) {
+        setCountdowns((prev) => ({ ...prev, [s.id]: 'Go!' }));
+      } else {
+        const secs = Math.floor(delta / 1000);
+        const mm = Math.floor(secs / 60);
+        const ss = secs % 60;
+        setCountdowns((prev) => ({ ...prev, [s.id]: `${pad(mm)}:${pad(ss)}` }));
+      }
+    }, 1000);
+    intervals.push(intId);
+
+    // start-time callback (per dish)
+    const msUntilStart = startAt - now;
+    if (msUntilStart > 0) {
+      const tId = setTimeout(() => {
+        onDishStart(s); // component handles beeping loop + banner
+      }, msUntilStart);
+      timeouts.push(tId);
+    }
+  });
+
+  timersRef.current = { timeouts, intervals };
+}
+
+function clearAllTimers(timersRef) {
+  timersRef.current?.timeouts?.forEach((t) => clearTimeout(t));
+  timersRef.current?.intervals?.forEach((i) => clearInterval(i));
+  timersRef.current = { timeouts: [], intervals: [] };
+}
+
 /* ---------- component ---------- */
 
 export default function Page() {
   // Default serve time 6:00 PM
   const defaultServe = useMemo(() => '18:00', []);
   const [serveTime, setServeTime] = useState(defaultServe);
+
+  // Print footer timestamp (avoid SSR/client mismatch)
+const [generatedAt, setGeneratedAt] = useState('');
+useEffect(() => { setGeneratedAt(new Date().toLocaleString()); }, []);
 
   // Dishes list
   const [dishes, setDishes] = useState([
@@ -84,6 +190,66 @@ export default function Page() {
     return dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
 
+  // --- Pro #1: smart alarms & live countdowns state ---
+  const [alarmsOn, setAlarmsOn] = useState(false);
+  const [countdowns, setCountdowns] = useState({}); // { [dishId]: "mm:ss" | "Go!" }
+  const timersRef = useRef({ timeouts: [], intervals: [] });
+
+  // Alarm banner + looped beeps
+  const [alarmBanner, setAlarmBanner] = useState(null); // string | null
+  const alarmLoopRef = useRef(null);
+
+  // Beep loop control (keep beeping up to 10s, or until user clicks Stop)
+  function startBeepLoop(durationMs = 10000) {
+    stopBeepLoop();
+    const endAt = Date.now() + durationMs;
+
+    // play immediately, then repeat ~every 800ms
+    playChime();
+    alarmLoopRef.current = setInterval(() => {
+      if (Date.now() >= endAt) {
+        stopBeepLoop();
+        return;
+      }
+      playChime();
+    }, 800);
+  }
+
+  function stopBeepLoop() {
+    if (alarmLoopRef.current) {
+      clearInterval(alarmLoopRef.current);
+      alarmLoopRef.current = null;
+    }
+  }
+
+  // Clear timers on unmount
+  useEffect(() => {
+    return () => {
+      clearAllTimers(timersRef);
+      stopBeepLoop();
+    };
+  }, []);
+
+  // Rebuild timers whenever schedule/alarms/pro changes
+  useEffect(() => {
+    clearAllTimers(timersRef);
+    stopBeepLoop();
+    setAlarmBanner(null);
+    setCountdowns({});
+    if (!isPro || !alarmsOn || schedule.length === 0) return;
+    setupAlarmsAndCountdowns(
+      schedule,
+      setCountdowns,
+      timersRef,
+      (s) => {
+        // when a dish reaches its start time:
+        startBeepLoop(10000); // up to 10s of beeps
+        setAlarmBanner(`Start: ${s.name} (${s.totalMinutes} min)`);
+      }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPro, alarmsOn, schedule]);
+
   return (
     <main className="min-h-screen bg-orange-50 text-gray-900">
       <div className="mx-auto max-w-3xl p-6">
@@ -94,49 +260,75 @@ export default function Page() {
           </p>
         </header>
 
+        {/* Alarm banner */}
+        {alarmBanner && (
+          <div className="print:hidden mb-4 rounded-xl border border-orange-300 bg-orange-100 px-4 py-3 flex items-center justify-between">
+            <div className="text-sm font-semibold text-orange-900">{alarmBanner}</div>
+            <button
+              onClick={() => { stopBeepLoop(); setAlarmBanner(null); }}
+              className="ml-4 rounded-lg border border-orange-400 bg-white px-3 py-1 text-sm text-gray-900 hover:bg-orange-50"
+            >
+              Stop
+            </button>
+          </div>
+        )}
+
         {/* Actions */}
-        <div className="mb-4 print:hidden flex gap-2">
-          <button
-            onClick={() => window.print()}
-            className="rounded-xl bg-orange-600 text-white px-4 py-2 hover:bg-orange-700"
-          >
-            Print / Save as PDF
-          </button>
+        <div className="mb-4 print:hidden flex flex-wrap items-center justify-between gap-3">
+          <div className="flex gap-2">
+            <button
+              onClick={() => window.print()}
+              className="rounded-xl bg-orange-600 text-white px-4 py-2 hover:bg-orange-700"
+            >
+              Print / Save as PDF
+            </button>
 
-          {!isPro && (
-            <div>
-              <button
-                onClick={async () => {
-                  try {
-                    const email = prompt('Enter your email for the receipt (optional):') || '';
-                    const res = await fetch('/api/checkout', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ email }),
-                    });
+            {!isPro && (
+              <div>
+                <button
+                  onClick={async () => {
+                    try {
+                      const email = prompt('Enter your email for the receipt (optional):') || '';
+                      const res = await fetch('/api/checkout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email }),
+                      });
 
-                    if (!res.ok) {
-                      const text = await res.text();
-                      alert(`Checkout error (${res.status}): ${text}`);
-                      return;
+                      if (!res.ok) {
+                        const text = await res.text();
+                        alert(`Checkout error (${res.status}): ${text}`);
+                        return;
+                      }
+
+                      const data = await res.json();
+                      if (data.url) {
+                        window.location.href = data.url;
+                      } else {
+                        alert(data.message || 'No checkout URL returned.');
+                      }
+                    } catch (e) {
+                      alert(`Unexpected error: ${e?.message || e}`);
                     }
+                  }}
+                  className="rounded-xl border border-gray-400 px-4 py-2 text-gray-900 hover:bg-orange-50"
+                >
+                  Upgrade to Pro — $5/year
+                </button>
+                <p className="text-xs text-gray-600 mt-1">Unlock alarms and (soon) text reminders.</p>
+              </div>
+            )}
+          </div>
 
-                    const data = await res.json();
-                    if (data.url) {
-                      window.location.href = data.url;
-                    } else {
-                      alert(data.message || 'No checkout URL returned.');
-                    }
-                  } catch (e) {
-                    alert(`Unexpected error: ${e?.message || e}`);
-                  }
-                }}
-                className="rounded-xl border border-gray-400 px-4 py-2 text-gray-900 hover:bg-orange-50"
-              >
-                Upgrade to Pro — $5/year
-              </button>
-              <p className="text-xs text-gray-600 mt-1">Unlock alarms and (soon) text reminders.</p>
-            </div>
+          {isPro && (
+            <label className="flex items-center gap-2 text-sm text-gray-900">
+              <input
+                type="checkbox"
+                checked={alarmsOn}
+                onChange={(e) => setAlarmsOn(e.target.checked)}
+              />
+              Enable smart alarms & live countdowns
+            </label>
           )}
         </div>
 
@@ -249,7 +441,7 @@ export default function Page() {
         </section>
 
         {/* Schedule */}
-        <section className="bg-white rounded-2xl shadow p-4">
+        <section id="print-schedule" className="bg-white rounded-2xl shadow p-4">
           <h2 className="text-lg font-semibold text-gray-900 mb-3">Your schedule</h2>
           {schedule.length === 0 ? (
             <p className="text-gray-800">Add at least one dish with a cook time to see your timeline.</p>
@@ -259,8 +451,17 @@ export default function Page() {
                 <li key={s.id} className="rounded-xl border border-gray-400 p-3">
                   <div className="flex items-center justify-between">
                     <div className="font-medium text-gray-900">{s.name}</div>
-                    <div className="text-sm text-gray-800">Total {s.totalMinutes} min</div>
+
+                    <div className="flex items-center gap-3">
+                      {isPro && alarmsOn && (
+                        <span className="text-xs rounded-full border border-orange-300 px-2 py-1 bg-orange-50 text-gray-900">
+                          {countdowns[s.id] || '--:--'}
+                        </span>
+                      )}
+                      <div className="text-sm text-gray-800">Total {s.totalMinutes} min</div>
+                    </div>
                   </div>
+
                   <div className="text-sm text-gray-900 mt-1">
                     Start at <span className="font-semibold">{fmt(s.startISO)}</span>, finish by{' '}
                     <span className="font-semibold">{fmt(s.endISO)}</span>
@@ -278,6 +479,47 @@ export default function Page() {
           © {new Date().getFullYear()} HotDish Planner
         </footer>
       </div>
+
+      {/* PRINT-ONLY SCHEDULE (shows only in print) */}
+<section id="print-only-schedule" className="hidden">
+  <div className="print-container">
+    <h1 className="print-title">HotDish Planner — Schedule</h1>
+    <div className="print-subtitle">
+      Serve time: <span className="print-mono">{serveTime || '--:--'}</span>
+    </div>
+
+    {schedule.length === 0 ? (
+      <p className="print-note">No dishes yet.</p>
+    ) : (
+      <table className="print-table">
+        <thead>
+          <tr>
+            <th>Dish</th>
+            <th>Start</th>
+            <th>Finish</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          {schedule.map((s) => (
+            <tr key={s.id}>
+              <td>{s.name}</td>
+              <td className="print-mono">{fmt(s.startISO)}</td>
+              <td className="print-mono">{fmt(s.endISO)}</td>
+              <td>{s.totalMinutes} min</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+
+   <div className="print-footer-note" suppressHydrationWarning>
+  Generated on {generatedAt}
+</div>
+
+  </div>
+</section>
+
     </main>
   );
 }
