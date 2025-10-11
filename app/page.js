@@ -14,6 +14,17 @@ function timeToToday(hhmm) {
 // --- Pro #1 helpers: countdown, chime, timer mgmt ---
 const pad = (n) => (n < 10 ? '0' + n : '' + n);
 
+// Plans storage (local only)
+const PLANS_KEY = 'hdp_plans'; // [{id,name,data:{serveTime, dishes}}]
+
+function loadPlansLS() {
+  try { return JSON.parse(localStorage.getItem(PLANS_KEY) || '[]'); }
+  catch { return []; }
+}
+function savePlansLS(plans) {
+  localStorage.setItem(PLANS_KEY, JSON.stringify(plans));
+}
+
 /** Double-beep (~0.5s) — used by the loop below */
 function playChime() {
   try {
@@ -164,6 +175,49 @@ useEffect(() => { setGeneratedAt(new Date().toLocaleString()); }, []);
     ]);
   }
 
+  function onSavePlan() {
+  if (!isPro) return alert('Pro only');
+  const name = newPlanName.trim();
+  if (!name) return alert('Name your plan first');
+
+  const cleanDishes = dishes.map(d => ({
+    // save minimal fields (no timers), preserve values
+    name: d.name || '',
+    prepMinutes: Number(d.prepMinutes || 0),
+    cookMinutes: Number(d.cookMinutes || 0),
+  })).filter(d => d.name && (d.prepMinutes || d.cookMinutes));
+
+  const next = [
+    ...plans,
+    { id: crypto.randomUUID(), name, data: { serveTime, dishes: cleanDishes } },
+  ];
+  setPlans(next);
+  savePlansLS(next);
+  setNewPlanName('');
+}
+
+function onLoadPlan(plan) {
+  if (!isPro) return alert('Pro only');
+  const p = plan?.data || {};
+  const loaded = (p.dishes || []).map(d => ({
+    id: crypto.randomUUID(),
+    name: d.name || '',
+    prepMinutes: Number(d.prepMinutes || 0),
+    cookMinutes: Number(d.cookMinutes || 0),
+  }));
+  setDishes(loaded.length ? loaded : [{ id: crypto.randomUUID(), name: '', prepMinutes: 0, cookMinutes: 0 }]);
+  setServeTime(p.serveTime || '18:00');
+  // optional: scroll to top so user sees everything updated
+  try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
+}
+
+function onDeletePlan(id) {
+  if (!isPro) return alert('Pro only');
+  const next = plans.filter(p => p.id !== id);
+  setPlans(next);
+  savePlansLS(next);
+}
+
   // Schedule: start = serve - (prep + cook)
   const schedule = useMemo(() => {
     if (!serveTime) return [];
@@ -199,10 +253,19 @@ useEffect(() => { setGeneratedAt(new Date().toLocaleString()); }, []);
   const [alarmBanner, setAlarmBanner] = useState(null); // string | null
   const alarmLoopRef = useRef(null);
 
+  // Pro #3: Save & reload plans
+const [plans, setPlans] = useState([]);       // array of saved plans
+const [newPlanName, setNewPlanName] = useState(''); // input for saving
+
   // Beep loop control (keep beeping up to 10s, or until user clicks Stop)
   function startBeepLoop(durationMs = 10000) {
     stopBeepLoop();
     const endAt = Date.now() + durationMs;
+
+    // Load saved plans when the page mounts
+useEffect(() => {
+  setPlans(loadPlansLS());
+}, []);
 
     // play immediately, then repeat ~every 800ms
     playChime();
@@ -439,6 +502,59 @@ useEffect(() => { setGeneratedAt(new Date().toLocaleString()); }, []);
             </button>
           </div>
         </section>
+
+{/* Save & reload plans (Pro) */}
+{isPro && (
+  <section className="bg-white rounded-2xl shadow p-4 mb-6">
+    <h2 className="text-lg font-semibold text-gray-900 mb-3">Save & reload plans</h2>
+
+    <div className="flex flex-col sm:flex-row gap-2 mb-3">
+      <input
+        className="rounded-xl border border-gray-400 p-2 text-gray-900 placeholder-gray-500 flex-1"
+        placeholder="Plan name (e.g., Thanksgiving sides)"
+        value={newPlanName}
+        onChange={(e) => setNewPlanName(e.target.value)}
+      />
+      <button
+        onClick={onSavePlan}
+        className="rounded-xl bg-orange-600 text-white px-4 py-2 hover:bg-orange-700"
+      >
+        Save plan
+      </button>
+    </div>
+
+    {plans.length === 0 ? (
+      <p className="text-sm text-gray-800">No saved plans yet.</p>
+    ) : (
+      <ul className="space-y-2">
+        {plans.map((p) => (
+          <li key={p.id} className="flex items-center justify-between rounded-xl border border-gray-300 p-3">
+            <div>
+              <div className="font-medium text-gray-900">{p.name}</div>
+              <div className="text-xs text-gray-700">
+                {(p.data?.dishes?.length || 0)} dishes · serve @ {p.data?.serveTime || '--:--'}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onLoadPlan(p)}
+                className="rounded-xl border border-gray-400 px-3 py-1 text-sm text-gray-900 hover:bg-orange-50"
+              >
+                Load
+              </button>
+              <button
+                onClick={() => onDeletePlan(p.id)}
+                className="rounded-xl border border-gray-400 px-3 py-1 text-sm text-gray-900 hover:bg-orange-50"
+              >
+                Delete
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+)}
 
         {/* Schedule */}
         <section id="print-schedule" className="bg-white rounded-2xl shadow p-4">
