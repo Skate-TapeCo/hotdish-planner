@@ -1,46 +1,71 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-// Turn "HH:MM" (e.g. "18:00") into a Date for today (local time)
+/* ---------- helpers ---------- */
+
+// "HH:MM" (e.g. "18:00") -> Date (today, local time)
 function timeToToday(hhmm) {
   const [hh = 0, mm = 0] = (hhmm || '18:00').split(':').map(Number);
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0, 0);
 }
 
+/* ---------- component ---------- */
+
 export default function Page() {
-  // Default to 6:00 PM
+  // Default serve time 6:00 PM
   const defaultServe = useMemo(() => '18:00', []);
   const [serveTime, setServeTime] = useState(defaultServe);
 
+  // Dishes list
   const [dishes, setDishes] = useState([
     { id: crypto.randomUUID(), name: 'Roast Turkey', prepMinutes: 20, cookMinutes: 180 },
   ]);
 
+  // Pro flag (unlocked on /success via localStorage)
+  const [isPro, setIsPro] = useState(false);
+  useEffect(() => {
+    setIsPro(localStorage.getItem('hdp_pro') === '1');
+  }, []);
+
+  // Presets
+  const presets = [
+    { name: 'Roast Turkey (12–14 lb)', prepMinutes: 20, cookMinutes: 210 },
+    { name: 'Stuffing (baked)',        prepMinutes: 15, cookMinutes: 45  },
+    { name: 'Mashed Potatoes',         prepMinutes: 15, cookMinutes: 30  },
+    { name: 'Green Bean Casserole',    prepMinutes: 10, cookMinutes: 30  },
+    { name: 'Pumpkin Pie',             prepMinutes: 15, cookMinutes: 55  },
+  ];
+
+  // Actions for dishes
   function addDish() {
-    setDishes((prev) => [
+    setDishes(prev => [
       ...prev,
       { id: crypto.randomUUID(), name: '', prepMinutes: 0, cookMinutes: 0 },
     ]);
   }
-
   function removeDish(id) {
-    setDishes((prev) => prev.filter((d) => d.id !== id));
+    setDishes(prev => prev.filter(d => d.id !== id));
   }
-
   function updateDish(id, patch) {
-    setDishes((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+    setDishes(prev => prev.map(d => (d.id === id ? { ...d, ...patch } : d)));
+  }
+  function addPreset(p) {
+    setDishes(prev => [
+      ...prev,
+      { id: crypto.randomUUID(), name: p.name, prepMinutes: p.prepMinutes, cookMinutes: p.cookMinutes },
+    ]);
   }
 
-  // Compute schedule: start = serve - (prep + cook)
+  // Schedule: start = serve - (prep + cook)
   const schedule = useMemo(() => {
     if (!serveTime) return [];
     const serve = timeToToday(serveTime).getTime();
 
     return dishes
-      .filter((d) => d.name.trim() && d.cookMinutes > 0)
-      .map((d) => {
+      .filter(d => d.name.trim() && d.cookMinutes > 0)
+      .map(d => {
         const total = (d.prepMinutes || 0) + d.cookMinutes;
         const start = new Date(serve - total * 60_000);
         const end = new Date(serve);
@@ -54,24 +79,9 @@ export default function Page() {
       .sort((a, b) => new Date(a.startISO) - new Date(b.startISO));
   }, [dishes, serveTime]);
 
-  function fmt(dtISO) {
-    const dt = new Date(dtISO);
+  function fmt(iso) {
+    const dt = new Date(iso);
     return dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  }
-
-  const presets = [
-    { name: 'Roast Turkey (12–14 lb)', prepMinutes: 20, cookMinutes: 210 },
-    { name: 'Stuffing (baked)', prepMinutes: 15, cookMinutes: 45 },
-    { name: 'Mashed Potatoes', prepMinutes: 15, cookMinutes: 30 },
-    { name: 'Green Bean Casserole', prepMinutes: 10, cookMinutes: 30 },
-    { name: 'Pumpkin Pie', prepMinutes: 15, cookMinutes: 55 },
-  ];
-
-  function addPreset(p) {
-    setDishes((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), name: p.name, prepMinutes: p.prepMinutes, cookMinutes: p.cookMinutes },
-    ]);
   }
 
   return (
@@ -84,14 +94,50 @@ export default function Page() {
           </p>
         </header>
 
-        {/* Actions (Print) */}
-        <div className="mb-4 print:hidden">
+        {/* Actions */}
+        <div className="mb-4 print:hidden flex gap-2">
           <button
             onClick={() => window.print()}
             className="rounded-xl bg-orange-600 text-white px-4 py-2 hover:bg-orange-700"
           >
             Print / Save as PDF
           </button>
+
+          {!isPro && (
+            <div>
+              <button
+                onClick={async () => {
+                  try {
+                    const email = prompt('Enter your email for the receipt (optional):') || '';
+                    const res = await fetch('/api/checkout', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email }),
+                    });
+
+                    if (!res.ok) {
+                      const text = await res.text();
+                      alert(`Checkout error (${res.status}): ${text}`);
+                      return;
+                    }
+
+                    const data = await res.json();
+                    if (data.url) {
+                      window.location.href = data.url;
+                    } else {
+                      alert(data.message || 'No checkout URL returned.');
+                    }
+                  } catch (e) {
+                    alert(`Unexpected error: ${e?.message || e}`);
+                  }
+                }}
+                className="rounded-xl border border-gray-400 px-4 py-2 text-gray-900 hover:bg-orange-50"
+              >
+                Upgrade to Pro — $5/year
+              </button>
+              <p className="text-xs text-gray-600 mt-1">Unlock alarms and (soon) text reminders.</p>
+            </div>
+          )}
         </div>
 
         {/* Serve time (TIME-ONLY) */}
@@ -136,16 +182,17 @@ export default function Page() {
           </div>
         </section>
 
-        {/* Dish list */}
+        {/* Your dishes */}
         <section className="bg-white rounded-2xl shadow p-4 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-3">Your dishes</h2>
-          {/* Column headers */}
-<div className="hidden md:grid grid-cols-12 gap-2 font-semibold text-gray-900 mb-2 text-sm">
-  <div className="col-span-5">Dish Name</div>
-  <div className="col-span-3 text-center">Prep. (min)</div>
-  <div className="col-span-3 text-center">Cook (min)</div>
-  <div className="col-span-1"></div>
-</div>
+
+          {/* Column headers (desktop) */}
+          <div className="hidden md:grid grid-cols-12 gap-2 font-semibold text-gray-900 mb-2 text-sm">
+            <div className="col-span-5">Dish Name</div>
+            <div className="col-span-3 text-center">Prep. (min)</div>
+            <div className="col-span-3 text-center">Cook (min)</div>
+            <div className="col-span-1"></div>
+          </div>
 
           <div className="space-y-3">
             {dishes.map((d) => (
@@ -182,12 +229,21 @@ export default function Page() {
               </div>
             ))}
           </div>
-          <div className="mt-3">
+
+          <div className="mt-3 flex gap-2">
             <button
               onClick={addDish}
               className="rounded-xl bg-orange-600 text-white px-4 py-2 hover:bg-orange-700"
             >
               + Add another dish
+            </button>
+            <button
+              onClick={() =>
+                setDishes([{ id: crypto.randomUUID(), name: '', prepMinutes: 0, cookMinutes: 0 }])
+              }
+              className="rounded-xl border border-gray-400 px-4 py-2 text-gray-900 hover:bg-orange-50"
+            >
+              Reset dishes
             </button>
           </div>
         </section>
