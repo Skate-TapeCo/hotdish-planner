@@ -186,10 +186,10 @@ export default function Page() {
 const [generatedAt, setGeneratedAt] = useState('');
 useEffect(() => { setGeneratedAt(new Date().toLocaleString()); }, []);
 
-  // Dishes list
-  const [dishes, setDishes] = useState([
-    { id: crypto.randomUUID(), name: 'Roast Turkey', prepMinutes: 20, cookMinutes: 180 },
-  ]);
+  // Dishes list (start blank)
+const [dishes, setDishes] = useState([
+  { id: crypto.randomUUID(), name: '', prepMinutes: 0, cookMinutes: 0 },
+]);
 
   // Pro flag (unlocked on /success via localStorage)
   const [isPro, setIsPro] = useState(false);
@@ -493,7 +493,9 @@ useEffect(() => {
                 >
                   Upgrade to Pro — $5/year
                 </button>
-                <p className="text-xs text-gray-600 mt-1">Unlock alarms and (soon) text reminders.</p>
+                <p className="text-xs text-gray-600 mt-1">
+  Pro unlocks smart alarms, live countdowns, save/load plans, and a beautiful print layout — just $5/year.
+</p>
               </div>
             )}
           </div>
