@@ -14,6 +14,57 @@ function timeToToday(hhmm) {
 // --- Pro #1 helpers: countdown, chime, timer mgmt ---
 const pad = (n) => (n < 10 ? '0' + n : '' + n);
 
+// Build a portable, read-only plan blob
+function buildPlanPayload(serveTime, dishes) {
+  return {
+    kind: 'hotdish-plan',
+    version: 1,
+    explain: 'Read-only HotDish Planner JSON. (Paste via Import in HotDish Planner.)',
+    data: {
+      serveTime,
+      dishes: dishes.map(d => ({
+        name: d.name || '',
+        prepMinutes: Number(d.prepMinutes || 0),
+        cookMinutes: Number(d.cookMinutes || 0),
+      })).filter(d => d.name && (d.prepMinutes || d.cookMinutes)),
+    },
+  };
+}
+
+// Extract & validate a plan JSON from arbitrary text
+function parsePlanFromText(text) {
+  if (!text) return null;
+
+  // Strip code fences/backticks and trim
+  let t = String(text).replace(/```json|```/gi, '').trim();
+
+  // If it includes extra lines, grab the first {...} block
+  const firstBrace = t.indexOf('{');
+  const lastBrace = t.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1) {
+    t = t.slice(firstBrace, lastBrace + 1);
+  }
+
+  // Try to parse
+  try {
+    const parsed = JSON.parse(t);
+    if (!parsed || parsed.kind !== 'hotdish-plan' || !parsed.data) return null;
+
+    const p = parsed.data;
+    const dishes = Array.isArray(p.dishes) ? p.dishes : [];
+    return {
+      serveTime: typeof p.serveTime === 'string' ? p.serveTime : '18:00',
+      dishes: dishes.map(d => ({
+        name: d?.name || '',
+        prepMinutes: Number(d?.prepMinutes || 0),
+        cookMinutes: Number(d?.cookMinutes || 0),
+      })).filter(d => d.name && (d.prepMinutes || d.cookMinutes)),
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Plans storage (local only)
 const PLANS_KEY = 'hdp_plans'; // [{id,name,data:{serveTime, dishes}}]
 
@@ -218,6 +269,67 @@ function onDeletePlan(id) {
   savePlansLS(next);
 }
 
+async function onSharePlanToClipboard() {
+  if (!isPro) return alert('Pro only');
+  const payload = buildPlanPayload(serveTime, dishes);
+  const friendly = [
+    'HotDish Planner — Plan (read-only)',
+    'To import: In HotDish Planner (Pro), click “Import / Paste JSON”, paste this, then press Import.',
+    '',
+    JSON.stringify(payload)
+  ].join('\n');
+  try {
+    await navigator.clipboard.writeText(friendly);
+    alert('Copied a shareable plan message to your clipboard!');
+  } catch (e) {
+    alert('Could not copy. You can manually copy this:\n\n' + friendly);
+  }
+}
+
+async function onImportPlanFromClipboard() {
+  if (!isPro) return alert('Pro only');
+  try {
+    const text = await navigator.clipboard.readText();
+    const plan = parsePlanFromText(text);
+    if (!plan) {
+      alert('Could not read a valid plan from clipboard.\nTip: copy the JSON blob or the whole “Share” message and try again.');
+      return;
+    }
+    const loaded = plan.dishes.map(d => ({
+      id: crypto.randomUUID(),
+      name: d.name,
+      prepMinutes: d.prepMinutes,
+      cookMinutes: d.cookMinutes,
+    }));
+    setDishes(loaded.length ? loaded : [{ id: crypto.randomUUID(), name: '', prepMinutes: 0, cookMinutes: 0 }]);
+    setServeTime(plan.serveTime);
+    window.scrollTo?.({ top: 0, behavior: 'smooth' });
+    alert('Plan imported from clipboard.');
+  } catch (e) {
+    alert('Clipboard read was blocked. On some browsers you must click once more or use the “Import / Paste JSON” box.');
+  }
+}
+
+function onImportFromTextBox() {
+  if (!isPro) return alert('Pro only');
+  const plan = parsePlanFromText(importText);
+  if (!plan) {
+    alert('That doesn’t look like a HotDish plan JSON.\nTip: you can paste the whole message or just the JSON block.');
+    return;
+  }
+  const loaded = plan.dishes.map(d => ({
+    id: crypto.randomUUID(),
+    name: d.name,
+    prepMinutes: d.prepMinutes,
+    cookMinutes: d.cookMinutes,
+  }));
+  setDishes(loaded.length ? loaded : [{ id: crypto.randomUUID(), name: '', prepMinutes: 0, cookMinutes: 0 }]);
+  setServeTime(plan.serveTime);
+  setImportText('');
+  window.scrollTo?.({ top: 0, behavior: 'smooth' });
+  alert('Plan imported.');
+}
+
   // Schedule: start = serve - (prep + cook)
   const schedule = useMemo(() => {
     if (!serveTime) return [];
@@ -256,6 +368,9 @@ function onDeletePlan(id) {
   // Pro #3: Save & reload plans
 const [plans, setPlans] = useState([]);       // array of saved plans
 const [newPlanName, setNewPlanName] = useState(''); // input for saving
+
+// Share/Import UX
+const [importText, setImportText] = useState(''); // manual paste box
 
   // Beep loop control (keep beeping up to 10s, or until user clicks Stop)
   function startBeepLoop(durationMs = 10000) {
@@ -522,6 +637,51 @@ useEffect(() => {
         Save plan
       </button>
     </div>
+
+    <div className="flex flex-wrap gap-2 mb-3">
+      <button
+        onClick={onSharePlanToClipboard}
+        className="rounded-xl border border-gray-400 px-3 py-2 text-sm text-gray-900 hover:bg-orange-50"
+      >
+        Share (copy JSON)
+      </button>
+      <button
+        onClick={onImportPlanFromClipboard}
+        className="rounded-xl border border-gray-400 px-3 py-2 text-sm text-gray-900 hover:bg-orange-50"
+      >
+        Import from Clipboard
+      </button>
+    </div>
+
+{/* Manual paste import (easier for most users than clipboard API) */}
+<details className="mb-3">
+  <summary className="cursor-pointer text-sm text-gray-900">Import / Paste JSON</summary>
+  <div className="mt-2 flex flex-col gap-2">
+    <textarea
+      className="rounded-xl border border-gray-400 p-2 text-sm text-gray-900 placeholder-gray-500 min-h-[120px]"
+      placeholder="Paste a HotDish plan JSON here…"
+      value={importText}
+      onChange={(e) => setImportText(e.target.value)}
+    />
+    <div className="flex gap-2">
+      <button
+        onClick={onImportFromTextBox}
+        className="rounded-xl bg-orange-600 text-white px-4 py-2 hover:bg-orange-700 text-sm"
+      >
+        Import
+      </button>
+      <button
+        onClick={() => setImportText('')}
+        className="rounded-xl border border-gray-400 px-3 py-2 text-sm text-gray-900 hover:bg-orange-50"
+      >
+        Clear
+      </button>
+    </div>
+    <p className="text-xs text-gray-700">
+      Tip: Use “Share (copy JSON)” to get a message you can send to someone. They can paste it here to load your plan.
+    </p>
+  </div>
+</details>
 
     {plans.length === 0 ? (
       <p className="text-sm text-gray-800">No saved plans yet.</p>
