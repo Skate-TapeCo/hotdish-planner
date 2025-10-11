@@ -36,3 +36,44 @@ html, body {
   }
   li { break-inside: avoid; }
 }
+
+/* === HotDish Planner: compact print schedule === */
+@media print {
+  /* Ensure colors render correctly when printing */
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Remove the orange background in print */
+  main, .bg-orange-50 { background: #fff !important; color: #000 !important; }
+
+  /* Hide interactive chrome (your Actions already use print:hidden; hide other sections, too) */
+  header p { display: none !important; }              /* keep title, drop subtext */
+  section:not(:last-of-type) {                        /* hide Serve time, Presets, Your dishes */
+    display: none !important;
+  }
+
+  /* Focus on the schedule (last section) and make it compact */
+  section:last-of-type {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Tighten list spacing */
+  ul.space-y-3 { gap: 0 !important; }
+  li.rounded-xl {
+    border: 1px solid #e5e7eb !important;
+    padding: 8px 10px !important;
+    margin-bottom: 6px !important;
+    box-shadow: none !important;
+    border-radius: 8px !important;
+    background: #fff !important;
+  }
+
+  /* Tidy headings */
+  h2 { margin: 0 0 6px 0 !important; font-size: 16px !important; }
+  .text-orange-900 { color: #000 !important; }       /* print-friendly titles */
+
+  /* Hide footer in print */
+  footer { display: none !important; }
+}
