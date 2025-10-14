@@ -6,3 +6,7 @@ ${urls.map(u => `<url><loc>${u}</loc></url>`).join('')}
 </urlset>`;
   return new Response(body, { headers: { 'Content-Type': 'application/xml' } });
 }
+
+export async function HEAD() {
+  return new Response(null, { headers: { 'Content-Type': 'application/xml' } });
+}
