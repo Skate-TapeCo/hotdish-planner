@@ -199,11 +199,26 @@ const [dishes, setDishes] = useState([
 
   // Presets
   const presets = [
-    { name: 'Roast Turkey (12–14 lb)', prepMinutes: 20, cookMinutes: 210 },
-    { name: 'Stuffing (baked)',        prepMinutes: 15, cookMinutes: 45  },
-    { name: 'Mashed Potatoes',         prepMinutes: 15, cookMinutes: 30  },
-    { name: 'Green Bean Casserole',    prepMinutes: 10, cookMinutes: 30  },
-    { name: 'Pumpkin Pie',             prepMinutes: 15, cookMinutes: 55  },
+      { name: 'Roast Turkey (12–14 lb)', prepMinutes: 20, cookMinutes: 210 },
+  { name: 'Stuffing (baked)',        prepMinutes: 15, cookMinutes: 45  },
+  { name: 'Mashed Potatoes',         prepMinutes: 15, cookMinutes: 30  },
+  { name: 'Green Bean Casserole',    prepMinutes: 10, cookMinutes: 30  },
+  { name: 'Pumpkin Pie',             prepMinutes: 15, cookMinutes: 55  },
+  { name: 'Cranberry Sauce (scratch)', prepMinutes: 10, cookMinutes: 15 },
+  { name: 'Turkey Gravy',              prepMinutes: 10, cookMinutes: 15 },
+  { name: 'Sweet Potato Casserole',    prepMinutes: 15, cookMinutes: 35 },
+  { name: 'Mac & Cheese (baked)',      prepMinutes: 15, cookMinutes: 30 },
+  { name: 'Brussels Sprouts (roasted)',prepMinutes: 10, cookMinutes: 25 },
+  { name: 'Dinner Rolls (bake)',       prepMinutes: 5,  cookMinutes: 12 },
+  { name: 'Apple Pie',                 prepMinutes: 15, cookMinutes: 60 },
+  { name: 'Pecan Pie',                 prepMinutes: 15, cookMinutes: 55 },
+  { name: 'Cornbread',                 prepMinutes: 10, cookMinutes: 20 },
+  { name: 'Glazed Carrots',            prepMinutes: 10, cookMinutes: 15 },
+  { name: 'Roasted Potatoes',          prepMinutes: 10, cookMinutes: 35 },
+  { name: 'Corn Casserole',            prepMinutes: 10, cookMinutes: 45 },
+  { name: 'Green Salad (assemble)',    prepMinutes: 10, cookMinutes: 0  },
+  { name: 'Turkey Stock (stovetop)',   prepMinutes: 10, cookMinutes: 120},
+  { name: 'Glazed Honey Ham (8–10 lb, pre-cooked)', prepMinutes: 10, cookMinutes: 100 },
   ];
 
   // Actions for dishes
@@ -567,40 +582,56 @@ useEffect(() => {
           </div>
 
           <div className="space-y-3">
-            {dishes.map((d) => (
-              <div key={d.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
-                <input
-                  className="md:col-span-5 rounded-xl border border-gray-400 p-2 text-gray-900 placeholder-gray-500"
-                  placeholder="Dish name"
-                  value={d.name}
-                  onChange={(e) => updateDish(d.id, { name: e.target.value })}
-                />
-                <input
-                  type="number"
-                  className="md:col-span-3 rounded-xl border border-gray-400 p-2 text-gray-900 placeholder-gray-500"
-                  min={0}
-                  placeholder="Prep (min)"
-                  value={d.prepMinutes}
-                  onChange={(e) => updateDish(d.id, { prepMinutes: Number(e.target.value || 0) })}
-                />
-                <input
-                  type="number"
-                  className="md:col-span-3 rounded-xl border border-gray-400 p-2 text-gray-900 placeholder-gray-500"
-                  min={0}
-                  placeholder="Cook (min)"
-                  value={d.cookMinutes}
-                  onChange={(e) => updateDish(d.id, { cookMinutes: Number(e.target.value || 0) })}
-                />
-                <button
-                  className="md:col-span-1 rounded-xl border border-gray-400 px-3 py-2 text-sm hover:bg-red-50 text-gray-900"
-                  onClick={() => removeDish(d.id)}
-                  aria-label="Remove dish"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
+  {dishes.map((d) => (
+    <div key={d.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+      {/* Dish name */}
+      <div className="md:col-span-5">
+        <label className="md:hidden block text-xs text-gray-700 mb-1">Dish name</label>
+        <input
+          className="w-full rounded-xl border border-gray-400 p-2 text-gray-900 placeholder-gray-500"
+          placeholder="Dish name"
+          value={d.name}
+          onChange={(e) => updateDish(d.id, { name: e.target.value })}
+        />
+      </div>
+
+      {/* Prep minutes */}
+      <div className="md:col-span-3">
+        <label className="md:hidden block text-xs text-gray-700 mb-1">Prep (min)</label>
+        <input
+          type="number"
+          className="w-full rounded-xl border border-gray-400 p-2 text-gray-900 placeholder-gray-500"
+          min={0}
+          placeholder="Prep (min)"
+          value={d.prepMinutes}
+          onChange={(e) => updateDish(d.id, { prepMinutes: Number(e.target.value || 0) })}
+        />
+      </div>
+
+      {/* Cook minutes */}
+      <div className="md:col-span-3">
+        <label className="md:hidden block text-xs text-gray-700 mb-1">Cook (min)</label>
+        <input
+          type="number"
+          className="w-full rounded-xl border border-gray-400 p-2 text-gray-900 placeholder-gray-500"
+          min={0}
+          placeholder="Cook (min)"
+          value={d.cookMinutes}
+          onChange={(e) => updateDish(d.id, { cookMinutes: Number(e.target.value || 0) })}
+        />
+      </div>
+
+      {/* Remove */}
+      <button
+        className="md:col-span-1 rounded-xl border border-gray-400 px-3 py-2 text-sm hover:bg-red-50 text-gray-900"
+        onClick={() => removeDish(d.id)}
+        aria-label="Remove dish"
+      >
+        ✕
+      </button>
+    </div>
+  ))}
+</div>
 
           <div className="mt-3 flex gap-2">
             <button
