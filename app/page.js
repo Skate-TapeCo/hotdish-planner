@@ -476,6 +476,24 @@ useEffect(() => {
               Print / Save as PDF
             </button>
 
+  <button
+    onClick={async () => {
+      try {
+        const url = 'https://hotdish-planner.vercel.app';
+        await navigator.clipboard.writeText(url);
+        alert('Link copied: ' + url);
+      } catch (e) {
+        // Fallback: select+prompt if clipboard API blocked
+        const url = 'https://hotdish-planner.vercel.app';
+        const ok = confirm('Copy link manually:\n\n' + url + '\n\nOpen this now?');
+        if (ok) window.open(url, '_blank');
+      }
+    }}
+    className="rounded-xl border border-gray-400 px-4 py-2 text-gray-900 hover:bg-orange-50"
+  >
+    Share this app
+  </button>
+
             {!isPro && (
               <div>
                 <button
