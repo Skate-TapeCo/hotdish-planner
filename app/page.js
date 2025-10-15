@@ -572,7 +572,9 @@ useEffect(() => {
         {/* Your dishes */}
         <section className="bg-white rounded-2xl shadow p-4 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-3">Your dishes</h2>
-
+          <p className="text-sm text-gray-700 italic -mt-2 mb-3">
+            ( * Adjust prep./cook times as needed. )
+          </p>
           {/* Column headers (desktop) */}
           <div className="hidden md:grid grid-cols-12 gap-2 font-semibold text-gray-900 mb-2 text-sm">
             <div className="col-span-5">Dish Name</div>
