@@ -39,6 +39,7 @@ export const metadata = {
   apple: '/apple-touch-icon.png',
   shortcut: '/favicon.ico',
 },
+alternates: { canonical: '/' },
 };
 
 
