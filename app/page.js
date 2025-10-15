@@ -495,42 +495,43 @@ useEffect(() => {
   </button>
 
             {!isPro && (
-              <div>
-                <button
-                  onClick={async () => {
-                    try {
-                      const email = prompt('Enter your email for the receipt (optional):') || '';
-                      const res = await fetch('/api/checkout', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email }),
-                      });
+  <div>
+    <button
+      onClick={async () => {
+        try {
+          const email = prompt('Enter your email for the receipt (optional):') || '';
+          const res = await fetch('/api/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+          });
 
-                      if (!res.ok) {
-                        const text = await res.text();
-                        alert(`Checkout error (${res.status}): ${text}`);
-                        return;
-                      }
+          if (!res.ok) {
+            const text = await res.text();
+            alert(`Checkout error (${res.status}): ${text}`);
+            return;
+          }
 
-                      const data = await res.json();
-                      if (data.url) {
-                        window.location.href = data.url;
-                      } else {
-                        alert(data.message || 'No checkout URL returned.');
-                      }
-                    } catch (e) {
-                      alert(`Unexpected error: ${e?.message || e}`);
-                    }
-                  }}
-                  className="rounded-xl border border-gray-400 px-4 py-2 text-gray-900 hover:bg-orange-50"
-                >
-                  Upgrade to Pro — $5/year
-                </button>
-                <p className="text-xs text-gray-600 mt-1">
-  Pro unlocks smart alarms, live countdowns, save/load plans, and a beautiful print layout — just $5/year.
-</p>
-              </div>
-            )}
+          const data = await res.json();
+          if (data.url) {
+            window.location.href = data.url;
+          } else {
+            alert(data.message || 'No checkout URL returned.');
+          }
+        } catch (e) {
+          alert(`Unexpected error: ${e?.message || e}`);
+        }
+      }}
+      className="rounded-xl bg-orange-600 text-white px-4 py-2 hover:bg-orange-700 shadow-sm"
+      aria-label="Upgrade to Pro — $5 per year"
+    >
+      Upgrade to Pro — $5/year
+    </button>
+    <p className="text-xs text-gray-700 mt-1">
+      Pro adds smart alarms, live countdowns, save/load plans, and a compact print layout.
+    </p>
+  </div>
+)}
           </div>
 
           {isPro && (
