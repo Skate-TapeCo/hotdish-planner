@@ -33,6 +33,11 @@ export const metadata = {
       'Plan Thanksgiving like a pro — everything finishes hot at the same time.',
     images: ['/og.png'],
   },
+  icons: {
+  icon: '/favicon.ico',
+  apple: '/apple-touch-icon.png',
+  shortcut: '/favicon.ico',
+},
 };
 
 
