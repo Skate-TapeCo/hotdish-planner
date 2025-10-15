@@ -7,8 +7,8 @@ export default function Page() {
         <p className="mb-2">Payments are processed by Stripe. We don’t store card details.</p>
         <p className="mb-2">We may use basic, privacy-friendly analytics to understand usage (page views, not personal data).</p>
         <p>Questions? Email{" "}
-          <a className="underline" href="mailto:youremail@example.com?subject=HotDish%20Planner%20privacy">
-            youremail@example.com
+          <a className="underline" href="mailto:skatetapeco@gmail.com?subject=HotDish%20Planner%20privacy">
+            skatetapeco@gmail.com
           </a>
         </p>
       </div>
