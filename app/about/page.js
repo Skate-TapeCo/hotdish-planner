@@ -10,8 +10,8 @@ export default function Page() {
         <h2 className="text-xl font-semibold mt-6 mb-2 text-orange-900">Contact</h2>
         <p>
           Feedback or issues? Email{" "}
-          <a className="underline" href="mailto:youremail@example.com?subject=HotDish%20Planner%20feedback">
-            youremail@example.com
+          <a className="underline" href="mailto:skatetapeco@gmail.com?subject=HotDish%20Planner%20feedback">
+            skatetapeco@gmail.com
           </a>
         </p>
       </div>

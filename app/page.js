@@ -809,7 +809,7 @@ useEffect(() => {
   <div className="flex items-center justify-center gap-4">
     <a href="/about" className="underline">About</a>
     <a href="/privacy" className="underline">Privacy</a>
-    <a href="mailto:youremail@example.com?subject=HotDish%20Planner%20feedback" className="underline">Contact</a>
+    <a href="mailto:skatetapeco@gmail.com?subject=HotDish%20Planner%20feedback" className="underline">Contact</a>
   </div>
   <div className="mt-2">© {new Date().getFullYear()} HotDish Planner</div>
 </footer>
