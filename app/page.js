@@ -191,11 +191,21 @@ const [dishes, setDishes] = useState([
   { id: crypto.randomUUID(), name: '', prepMinutes: 0, cookMinutes: 0 },
 ]);
 
-  // Pro flag (unlocked on /success via localStorage)
-  const [isPro, setIsPro] = useState(false);
-  useEffect(() => {
-    setIsPro(localStorage.getItem('hdp_pro') === '1');
-  }, []);
+ // Pro flag (unlocked on /success via localStorage) + Demo mode support
+const [isPro, setIsPro] = useState(false);
+useEffect(() => {
+  const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const demo = params?.get("demo");
+  const urlForcesPro = demo === "pro" || demo === "1";
+
+  if (urlForcesPro) {
+    setIsPro(true);
+    return;
+  }
+
+  // fallback to your stored purchase flag
+  setIsPro(localStorage.getItem("hdp_pro") === "1");
+}, []);
 
   // Presets
   const presets = [
@@ -809,7 +819,7 @@ useEffect(() => {
   <div className="flex items-center justify-center gap-4">
     <a href="/about" className="underline">About</a>
     <a href="/privacy" className="underline">Privacy</a>
-    <a href="mailto:skatetapeco@gmail.com?subject=HotDish%20Planner%20feedback" className="underline">Contact</a>
+    <a href="mailto:support@example.com?subject=HotDish%20Planner%20feedback" className="underline">Contact</a>
   </div>
   <div className="mt-2">© {new Date().getFullYear()} HotDish Planner</div>
 </footer>
