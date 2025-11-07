@@ -4,6 +4,7 @@
 - Full source code (this repo)
 - `.env.example` with required environment variables
 - Deployed app instructions (see below)
+- Domain name hotdishplanner.com
 
 ## Not Included
 - Seller’s Stripe account or keys (buyer must use their own)
